@@ -1,0 +1,8 @@
+code/Rplots.pdf
+paper/
+data/
+raw/
+*.Rdata
+*.pptx
+figures/
+docs/*.xlsx

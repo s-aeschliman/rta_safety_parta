@@ -1,15 +1,15 @@
 library(tidyverse)
 library(lavaan)
 library(blavaan)
-library(bayestestR)
-library(lavaanPlot)
-library(semPlot)
-library(ggplot2)
-library(bayesplot)
-library(viridis)
-library(viridisLite)
+#library(bayestestR)
+#library(lavaanPlot)
+#library(semPlot)
+#library(ggplot2)
+#library(bayesplot)
+#library(viridis)
+#library(viridisLite)
 
-setwd("/Users/aesch/Documents/Grad School/projects_grad/rta/safety study/code")
+#setwd("/Users/aesch/Documents/Grad School/projects_grad/rta/safety study/code")
 # load the previously processed data
 data <- read_csv("../data/data_for_sem.csv")
 
@@ -40,13 +40,13 @@ satisfaction_outcome_model = '
 
     # ------------------------------- outcome regression ---------------------------  
 
-    satisfaction ~ enforcement_sensitivity + upkeep_sensitivity + mode_CTA_RAIL + mode_CTA_BUS + mode_METRA + age + num_vehicles + income + gender_Female + WITNESSED_CRIME +   WITNESSED_NUIS + WOM_SOC_CRIME + WOM_SOC_NUIS + TRAD_CRIME + TRAD_NUIS
+    satisfaction ~ enforcement_sensitivity + upkeep_sensitivity + mode_CTA_RAIL + mode_CTA_BUS + mode_METRA + age + num_vehicles + income + gender_Female + WITNESSED_CRIME + WITNESSED_NUIS + WOM_SOC_CRIME + WOM_SOC_NUIS + TRAD_CRIME + TRAD_NUIS
 
 '
 
 # SET MCMC PARAMS
 num_burnin <- 1000
-num_samples <- 3000
+num_samples <- 2000
 num_chains <- 4
 
 
@@ -54,35 +54,37 @@ num_chains <- 4
 # the default priors for these params are far too diffuse
 my_priors <- dpriors(
   lambda = "normal(0, 0.5)", # factor loadings
-  beta = "normal(0,2)", # satisfaction regression coefficients
-  nu = "normal(6, 3)" # satisfaction regression intercept
+  beta = "normal(0, 0.5)", # satisfaction regression coefficients
+  tau = "normal(0, 0.2)" # ordered thresholds made very narrow to fit the model!
 )
 
 prior_pred = FALSE # FALSE for posterior samples, TRUE for prior predictive samples
 
 library(future)
 future::plan("multicore") # for parallel processing of post-estimation metrics (LVs, etc)
-
+options(future.globals.maxSize = 1310720000) # 1310720000 = 1.25 GB, 891289600 = 850 MB
 # fit the full SEM
-b_satisfaction_outcome_results <- bsem(
+b_satisfaction_outcome_results_ordered <- bsem(
   model = satisfaction_outcome_model,
   data = data,
+  ordered = c("satisfaction"),
   dp = my_priors, 
+  inits = "prior",
   n.chains = num_chains,
   burnin = num_burnin,
   sample = num_samples,
-  save.lvs = TRUE,
+  #save.lvs = TRUE,
   prisamp = prior_pred,
-  bcontrol = list(cores = 4), # parallel estimation
+  bcontrol = list(cores = num_chains), # parallel estimation
   mcmcfile = F # save the stan code 
 )
 
-bres <- summary(b_satisfaction_outcome_results, fit.measures = TRUE)
+bres <- summary(b_satisfaction_outcome_results_ordered, fit.measures = TRUE)
 
-#prpc_plot <- plot(b_satisfaction_outcome_results, plot.type = "dens")
+#prpc_plot <- plot(b_satisfaction_outcome_results_ordered, plot.type = "dens")
 #ggsave("../figures/prior_predictive_checks.png", dpi=300, width = 8, height = 8)
 
-#lv_cov_prior <- plot(b_satisfaction_outcome_results, plot.type = "dens", pars = 5)
+#lv_cov_prior <- plot(b_satisfaction_outcome_results_ordered, plot.type = "dens", pars = 5)
 #ggsave("../figures/lv_cov_prior.png", dpi=300, width = 8, height = 8)
 
 # null model (for incremental fit indices)
@@ -114,27 +116,37 @@ bres <- summary(b_satisfaction_outcome_results, fit.measures = TRUE)
 
 # inspect model outputs and diagnostics
 
-options(future.globals.maxSize = 891289600)
-effective_sample_sizes <- blavInspect(b_satisfaction_outcome_results, what = "neff")
-posterior_lv_means <- blavInspect(b_satisfaction_outcome_results, what = "lvmeans")
-posterior_lv_samples <- blavPredict(b_satisfaction_outcome_results, type = "lv") # sample posterior predictive dist
 
-lv_mean_df <- data.frame(posterior_lv_means)
+effective_sample_sizes <- blavInspect(b_satisfaction_outcome_results_ordered, what = "neff")
+#posterior_lv_means <- blavInspect(b_satisfaction_outcome_results_ordered, what = "lvmeans")
+#posterior_lv_samples <- blavPredict(b_satisfaction_outcome_results_ordered, type = "lv") # sample posterior predictive dist
 
-lv_mean_df$id <- 1:dsize
+#lv_mean_df <- data.frame(posterior_lv_means)
 
-data_with_fit_lvs <- cbind(data, lv_mean_df)
+#lv_mean_df$id <- 1:dsize
 
-print("SAMPLING POSTERIOR PREDICTIVE...")
+#data_with_fit_lvs <- cbind(data, lv_mean_df)
+
+#print("SAMPLING POSTERIOR PREDICTIVE...")
 
 # posterior predictive samples
-yrep <- blavPredict(b_satisfaction_outcome_results, type="ypred")[2001:2500]
+#yrep <- blavPredict(b_satisfaction_outcome_results_ordered, type="ypred")[num_burnin+1:num_burnin+501]
 
-yrep <- do.call("rbind", yrep)
+#yrep <- do.call("rbind", yrep)
 
 save(
-  b_satisfaction_outcome_results, effective_sample_sizes, 
-  data_with_fit_lvs, yrep,
-  posterior_lv_means, posterior_lv_samples,
-  file = "safety_bsem.RData"
+  b_satisfaction_outcome_results_ordered, 
+  effective_sample_sizes, 
+  #yrep,
+  num_chains,
+  num_burnin,
+  num_samples,
+  #data_with_fit_lvs,
+  #posterior_lv_means, 
+  #posterior_lv_samples,
+  # save file with current date in the filename
+  file = paste0(
+    "saved_models/safety_bsem_ordered_", 
+    format(Sys.time(), "%Y-%m-%d_%H-%M"), 
+    ".RData")
 )

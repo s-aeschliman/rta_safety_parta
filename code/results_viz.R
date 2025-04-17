@@ -4,7 +4,7 @@ library(bayesplot)
 library(gridExtra)
 library(latex2exp)
 
-setwd("/Users/aesch/Documents/Grad School/projects_grad/rta/safety study/code")
+#setwd("/Users/aesch/Documents/Grad School/projects_grad/rta/safety study/code")
 
 my_theme  <- theme(
   axis.text = element_text(size = 15),
@@ -28,6 +28,8 @@ p_lv <- plot(b_satisfaction_outcome_results, pars = 6:11, plot.type = "areas", s
         labs(title = "Posterior distributions for LV effect on satisfaction")
 
 ggsave("../figures/lv_beta_coef_dists.png", dpi=200)
+
+
 
 # parameter distributions
 color_scheme_set("green")
